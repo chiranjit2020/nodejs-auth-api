@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Auth Flow Explained</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .section {
+            background: white;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 0;
+        }
+        .flow-step {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+            padding: 15px;
+            background: #ecf0f1;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .step-number {
+            background: #3498db;
+            color: white;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .arrow {
+            text-align: center;
+            font-size: 24px;
+            color: #3498db;
+            margin: 10px 0;
+        }
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .token-box {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 5px 0;
+        }
+        .access-token {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            color: #155724;
+        }
+        .refresh-token {
+            background: #d1ecf1;
+            border: 1px solid #17a2b8;
+            color: #0c5460;
+        }
+        .preflight {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .timeline {
+            position: relative;
+            padding-left: 50px;
+        }
+        .timeline-item {
+            position: relative;
+            padding: 15px 0;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -35px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #3498db;
+        }
+        .timeline-dot {
+            position: absolute;
+            left: -43px;
+            top: 20px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3498db;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #3498db;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 JWT Authentication Flow - Complete Guide</h1>
+
+    <div class="section">
+        <h2>📊 Token Comparison</h2>
+        <table>
+            <tr>
+                <th>Feature</th>
+                <th>Access Token</th>
+                <th>Refresh Token</th>
+            </tr>
+            <tr>
+                <td><strong>Lifetime</strong></td>
+                <td>1 minute (short)</td>
+                <td>7 days (long)</td>
+            </tr>
+            <tr>
+                <td><strong>Purpose</strong></td>
+                <td>Access protected resources</td>
+                <td>Get new access tokens</td>
+            </tr>
+            <tr>
+                <td><strong>Secret Key</strong></td>
+                <td>JWT_ACCESS_SECRET</td>
+                <td>JWT_REFRESH_SECRET</td>
+            </tr>
+            <tr>
+                <td><strong>Used In</strong></td>
+                <td>Authorization header</td>
+                <td>Request body</td>
+            </tr>
+            <tr>
+                <td><strong>Sent With</strong></td>
+                <td>Every API call</td>
+                <td>Only /refresh endpoint</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>🔄 Complete Authentication Flow</h2>
+        
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="flow-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <strong>User Login</strong><br>
+                        POST /api/users/login<br>
+                        Body: { email, password }
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="flow-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <strong>Server Response</strong><br>
+                        Returns TWO tokens:<br>
+                        <span class="token-box access-token">Access Token (1m)</span>
+                        <span class="token-box refresh-token">Refresh Token (7d)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="flow-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <strong>Store Tokens</strong><br>
+                        localStorage.setItem('accessToken', token)<br>
+                        localStorage.setItem('refreshToken', refreshToken)
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="flow-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <strong>Make API Calls (0-1 min)</strong><br>
+                        GET /api/users/me<br>
+                        Header: Authorization: Bearer <span class="highlight">accessToken</span><br>
+                        ✅ Works fine
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="flow-step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <strong>After 1 Minute</strong><br>
+                        GET /api/users/me<br>
+                        ❌ Returns 401 (Access token expired)
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="flow-step">
+                    <div class="step-number">6</div>
+                    <div class="step-content">
+                        <strong>Auto Refresh Token</strong><br>
+                        POST /api/users/refresh<br>
+                        Body: { refreshToken: <span class="highlight">refreshToken</span> }<br>
+                        ✅ Returns new access token
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="flow-step">
+                    <div class="step-number">7</div>
+                    <div class="step-content">
+                        <strong>Update & Retry</strong><br>
+                        Store new access token<br>
+                        Retry original request<br>
+                        ✅ Success!
+                    </div>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="flow-step">
+                    <div class="step-number">8</div>
+                    <div class="step-content">
+                        <strong>Continue Using</strong><br>
+                        Every 1 minute, steps 5-7 repeat automatically<br>
+                        User never notices!
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>⚠️ Understanding CORS Preflight</h2>
+        
+        <div class="preflight">
+            <strong>Why you see 2 requests for /refresh:</strong>
+        </div>
+
+        <div class="flow-step" style="border-left-color: #ffc107;">
+            <div class="step-number" style="background: #ffc107;">1</div>
+            <div class="step-content">
+                <strong>OPTIONS Request (Preflight)</strong><br>
+                Browser: "Hey server, can I make a POST request with JSON?"<br>
+                Server: "Yes, go ahead!" (via CORS headers)
+            </div>
+        </div>
+
+        <div class="flow-step" style="border-left-color: #28a745;">
+            <div class="step-number" style="background: #28a745;">2</div>
+            <div class="step-content">
+                <strong>POST Request (Actual)</strong><br>
+                Your actual /refresh request with the refresh token<br>
+                Server: Returns new access token
+            </div>
+        </div>
+
+        <div class="code-block">
+// Browser automatically sends OPTIONS first
+OPTIONS /api/users/refresh
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: content-type
+
+// Then your actual request
+POST /api/users/refresh
+Content-Type: application/json
+Body: { "refreshToken": "..." }
+        </div>
+
+        <p><strong>This is normal!</strong> Preflight happens because:</p>
+        <ul>
+            <li>Frontend (localhost:5500) ≠ Backend (localhost:5000) = Cross-origin</li>
+            <li>Using Content-Type: application/json</li>
+            <li>Browser security feature, not an error</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🎯 Key Concepts Summary</h2>
+        
+        <div style="background: #e8f4f8; padding: 15px; border-radius: 5px; margin: 10px 0;">
+            <strong>Access Token:</strong> Your "entry pass" - expires quickly (1min) for security
+        </div>
+        
+        <div style="background: #fff3e0; padding: 15px; border-radius: 5px; margin: 10px 0;">
+            <strong>Refresh Token:</strong> Your "renewal pass" - lasts longer (7d), used to get new entry passes
+        </div>
+        
+        <div style="background: #f3e5f5; padding: 15px; border-radius: 5px; margin: 10px 0;">
+            <strong>Why 2 tokens?</strong> Security! If someone steals your access token, it only works for 1 minute. The refresh token is rarely sent over the network.
+        </div>
+        
+        <div style="background: #e8f5e9; padding: 15px; border-radius: 5px; margin: 10px 0;">
+            <strong>Automatic refresh:</strong> Your frontend handles token refresh automatically. Users never know their token expired!
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🧪 Testing Timeline</h2>
+        
+        <div style="font-family: monospace; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+            <div style="margin: 10px 0;">00:00 - 🟢 Login (get both tokens)</div>
+            <div style="margin: 10px 0;">00:30 - 🟢 API call works (access token valid)</div>
+            <div style="margin: 10px 0;">01:00 - ⏰ Access token expires</div>
+            <div style="margin: 10px 0;">01:15 - 🟡 API call fails (401)</div>
+            <div style="margin: 10px 0;">01:16 - 🔄 Auto refresh (get new access token)</div>
+            <div style="margin: 10px 0;">01:17 - 🟢 API call retried - Success!</div>
+            <div style="margin: 10px 0;">02:00 - ⏰ Access token expires again</div>
+            <div style="margin: 10px 0;">02:01 - 🔄 Auto refresh again...</div>
+            <div style="margin: 10px 0; color: #d32f2f;">7 days - ❌ Refresh token expires - Must login again</div>
+        </div>
+    </div>
+
+</body>
+</html>

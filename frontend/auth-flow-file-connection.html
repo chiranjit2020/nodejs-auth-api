@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Flow - File Connections</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+            overflow-x: auto;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            padding: 20px;
+            border: 2px solid #00ff00;
+            margin-bottom: 30px;
+            background: #0f0f0f;
+        }
+        .flow-container {
+            position: relative;
+            padding: 40px;
+        }
+        .file-node {
+            position: absolute;
+            padding: 15px 20px;
+            border: 2px solid #00ff00;
+            background: #0a0a0a;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 200px;
+        }
+        .file-node:hover {
+            background: #1a1a1a;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+            transform: scale(1.05);
+        }
+        .file-name {
+            color: #00ff00;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .file-desc {
+            color: #888;
+            font-size: 12px;
+        }
+        .file-type {
+            color: #ffd700;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .connection-line {
+            stroke: #00ff00;
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 5, 5;
+            animation: dash 20s linear infinite;
+        }
+        .connection-arrow {
+            fill: #00ff00;
+        }
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+        .layer {
+            margin-bottom: 40px;
+        }
+        .layer-title {
+            color: #ffd700;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-left: 4px solid #ffd700;
+            background: #1a1a1a;
+        }
+        .legend {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #0f0f0f;
+            border: 2px solid #00ff00;
+            padding: 15px;
+            max-width: 300px;
+        }
+        .legend-item {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        .legend-line {
+            width: 40px;
+            height: 2px;
+            background: #00ff00;
+            margin-right: 10px;
+            animation: dash 2s linear infinite;
+        }
+        .flow-step {
+            background: #0f0f0f;
+            border-left: 3px solid #00ff00;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .step-number {
+            color: #ffd700;
+            font-weight: bold;
+        }
+        .code-snippet {
+            background: #000;
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .highlight {
+            color: #ff00ff;
+        }
+        .success {
+            color: #00ff00;
+        }
+        .error {
+            color: #ff0000;
+        }
+        .warning {
+            color: #ffd700;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <pre>
+╔══════════════════════════════════════════════════════════════╗
+║   JWT AUTHENTICATION SYSTEM - FILE CONNECTION MAP            ║
+║   Day-4: Logout & Refresh Token Invalidation                 ║
+╚══════════════════════════════════════════════════════════════╝
+            </pre>
+        </div>
+
+        <div class="legend">
+            <div style="color: #ffd700; margin-bottom: 10px; font-weight: bold;">LEGEND</div>
+            <div class="legend-item">
+                <div class="legend-line"></div>
+                <span>Data Flow</span>
+            </div>
+            <div class="legend-item">
+                <span style="color: #00ff00;">●</span>
+                <span style="margin-left: 10px;">Success</span>
+            </div>
+            <div class="legend-item">
+                <span style="color: #ff0000;">●</span>
+                <span style="margin-left: 10px;">Error/Block</span>
+            </div>
+            <div class="legend-item">
+                <span style="color: #ffd700;">●</span>
+                <span style="margin-left: 10px;">Database</span>
+            </div>
+        </div>
+
+        <!-- Flow Visualization -->
+        <div style="margin: 40px 0;">
+            <div class="layer-title">📁 PROJECT STRUCTURE & CONNECTIONS</div>
+            
+            <pre class="code-snippet">
+<span class="warning">nodejs-auth-api/</span>
+├── <span class="success">.env</span>                      <span class="highlight">→ Environment variables</span>
+├── <span class="success">server.js</span>                 <span class="highlight">→ Main entry point</span>
+├── <span class="success">package.json</span>
+└── <span class="warning">src/</span>
+    ├── <span class="warning">config/</span>
+    │   └── <span class="success">db.js</span>             <span class="highlight">→ MongoDB connection</span>
+    ├── <span class="warning">middlewares/</span>
+    │   └── <span class="success">auth.js</span>           <span class="highlight">→ JWT verification middleware</span>
+    ├── <span class="warning">models/</span>
+    │   └── <span class="success">userModel.js</span>      <span class="highlight">→ User schema + refreshToken field</span>
+    ├── <span class="warning">routes/</span>
+    │   └── <span class="success">userRoutes.js</span>     <span class="highlight">→ Route definitions (optional)</span>
+    └── <span class="warning">controllers/</span>
+        └── <span class="success">userController.js</span> <span class="highlight">→ Business logic (optional)</span>
+            </pre>
+        </div>
+
+        <!-- Connection Flow -->
+        <div style="margin: 40px 0;">
+            <div class="layer-title">🔄 FILE CONNECTION FLOW</div>
+
+            <div class="flow-step">
+                <span class="step-number">[STEP 1]</span> <span class="success">server.js</span> starts
+                <pre class="code-snippet">
+<span class="highlight">import</span> dotenv <span class="highlight">from</span> 'dotenv'
+<span class="highlight">import</span> { User } <span class="highlight">from</span> './src/models/userModel.js'
+<span class="highlight">import</span> { protect } <span class="highlight">from</span> './src/middlewares/auth.js'
+
+dotenv.config() <span class="success">// Loads .env file</span>
+                </pre>
+            </div>
+
+            <div class="flow-step">
+                <span class="step-number">[STEP 2]</span> <span class="warning">.env</span> provides configuration
+                <pre class="code-snippet">
+PORT=5000
+MONGO_URI=mongodb://localhost:27017
+JWT_ACCESS_SECRET=fed4a1b0541f497ba05955be16770124
+JWT_REFRESH_SECRET=bcb1c84699d546d4a0b3ff285941e1f8
+JWT_EXPIRES_IN=1m
+JWT_REFRESH_SECRET_EXPIRES_IN=7d
+                </pre>
+            </div>
+
+            <div class="flow-step">
+                <span class="step-number">[STEP 3]</span> <span class="success">userModel.js</span> defines schema
+                <pre class="code-snippet">
+<span class="highlight">const</span> userSchema = {
+  name: String,
+  email: String,
+  password: String,
+  <span class="warning">refreshToken: String</span>  <span class="success">// 🔥 DAY-4 ADDITION</span>
+}
+                </pre>
+            </div>
+
+            <div class="flow-step">
+                <span class="step-number">[STEP 4]</span> Request comes in → <span class="success">server.js</span> handles it
+            </div>
+
+            <div class="flow-step">
+                <span class="step-number">[STEP 5]</span> Protected routes use <span class="success">auth.js</span> middleware
+                <pre class="code-snippet">
+app.get('/api/users/me', <span class="warning">protect</span>, async (req, res) => {
+  <span class="success">// protect middleware verifies JWT</span>
+  <span class="success">// extracts user ID from token</span>
+  <span class="success">// attaches to req.user</span>
+})
+                </pre>
+            </div>
+        </div>
+
+        <!-- Detailed Flow Diagram -->
+        <div style="margin: 40px 0;">
+            <div class="layer-title">🎯 REQUEST FLOW - LOGIN EXAMPLE</div>
+            
+            <pre class="code-snippet" style="line-height: 2;">
+<span class="highlight">CLIENT</span> (frontend/index.html)
+   │
+   │ <span class="success">POST /api/users/login</span>
+   │ { email, password }
+   │
+   ▼
+<span class="highlight">SERVER.JS</span>
+   │
+   ├─→ <span class="warning">Verify credentials</span>
+   │   │
+   │   └─→ <span class="highlight">User.findOne({ email })</span>
+   │       │
+   │       └─→ <span class="warning">userModel.js</span>
+   │           │
+   │           └─→ <span class="warning">MongoDB</span> 🗄️
+   │               │
+   │               ▼
+   │           <span class="success">User found</span>
+   │
+   ├─→ <span class="warning">bcrypt.compare(password)</span>
+   │   │
+   │   └─→ <span class="success">Password valid</span>
+   │
+   ├─→ <span class="warning">Generate tokens</span>
+   │   │
+   │   ├─→ <span class="success">jwt.sign()</span> → <span class="highlight">accessToken</span> (1m)
+   │   └─→ <span class="success">jwt.sign()</span> → <span class="highlight">refreshToken</span> (7d)
+   │
+   ├─→ <span class="warning">Store refreshToken in DB</span>
+   │   │
+   │   └─→ <span class="highlight">user.refreshToken = refreshToken</span>
+   │       │
+   │       └─→ <span class="highlight">user.save()</span>
+   │           │
+   │           └─→ <span class="warning">MongoDB</span> 🗄️
+   │               │
+   │               ▼
+   │           <span class="success">Stored in DB</span>
+   │
+   └─→ <span class="success">Return { token, refreshToken }</span>
+       │
+       ▼
+<span class="highlight">CLIENT</span>
+   │
+   └─→ <span class="warning">localStorage.setItem('accessToken')</span>
+   └─→ <span class="warning">localStorage.setItem('refreshToken')</span>
+            </pre>
+        </div>
+
+        <!-- Protected Route Flow -->
+        <div style="margin: 40px 0;">
+            <div class="layer-title">🔒 PROTECTED ROUTE FLOW - /api/users/me</div>
+            
+            <pre class="code-snippet" style="line-height: 2;">
+<span class="highlight">CLIENT</span>
+   │
+   │ <span class="success">GET /api/users/me</span>
+   │ Header: Authorization: Bearer <span class="warning">&lt;accessToken&gt;</span>
+   │
+   ▼
+<span class="highlight">SERVER.JS</span>
+   │
+   ├─→ <span class="warning">protect</span> middleware (<span class="highlight">auth.js</span>)
+   │   │
+   │   ├─→ Extract token from header
+   │   │   <span class="success">const token = req.headers.authorization?.split(" ")[1]</span>
+   │   │
+   │   ├─→ Verify token
+   │   │   <span class="success">jwt.verify(token, JWT_ACCESS_SECRET)</span>
+   │   │   │
+   │   │   ├─→ <span class="success">Valid</span> → Extract user ID
+   │   │   │   │
+   │   │   │   └─→ <span class="success">req.user = decoded.id</span>
+   │   │   │       │
+   │   │   │       └─→ <span class="success">next()</span> → Continue to route handler
+   │   │   │
+   │   │   └─→ <span class="error">Invalid/Expired</span> → Return 401
+   │   │
+   │   └─→ <span class="success">Token valid, continue</span>
+   │
+   └─→ Route handler executes
+       │
+       └─→ <span class="highlight">User.findById(req.user)</span>
+           │
+           └─→ <span class="warning">userModel.js</span>
+               │
+               └─→ <span class="warning">MongoDB</span> 🗄️
+                   │
+                   ▼
+               <span class="success">User data</span>
+                   │
+                   ▼
+           <span class="success">Return { user }</span>
+                   │
+                   ▼
+<span class="highlight">CLIENT</span>
+   │
+   └─→ <span class="success">Display user info</span>
+            </pre>
+        </div>
+
+        <!-- Refresh Flow -->
+        <div style="margin: 40px 0;">
+            <div class="layer-title">🔄 REFRESH TOKEN FLOW - /api/users/refresh</div>
+            
+            <pre class="code-snippet" style="line-height: 2;">
+<span class="highlight">CLIENT</span>
+   │
+   │ Access token expired (after 1 minute)
+   │
+   │ <span class="success">POST /api/users/refresh</span>
+   │ { refreshToken }
+   │
+   ▼
+<span class="highlight">SERVER.JS</span>
+   │
+   ├─→ <span class="warning">Step 1: Verify JWT signature</span>
+   │   │
+   │   └─→ <span class="success">jwt.verify(refreshToken, JWT_REFRESH_SECRET)</span>
+   │       │
+   │       ├─→ <span class="success">Valid</span> → Extract user ID
+   │       │
+   │       └─→ <span class="error">Invalid</span> → Return 401
+   │
+   ├─→ <span class="warning">Step 2: Check DB 🔥 CRITICAL SECURITY CHECK</span>
+   │   │
+   │   └─→ <span class="highlight">User.findById(decoded.id).select('+refreshToken')</span>
+   │       │
+   │       └─→ <span class="warning">MongoDB</span> 🗄️
+   │           │
+   │           ├─→ Get stored refreshToken from DB
+   │           │   │
+   │           │   └─→ <span class="warning">Compare: DB token === Request token?</span>
+   │           │       │
+   │           │       ├─→ <span class="success">MATCH</span> → Token is valid
+   │           │       │   │
+   │           │       │   └─→ Generate new access token
+   │           │       │       │
+   │           │       │       └─→ <span class="success">jwt.sign() → newAccessToken</span>
+   │           │       │           │
+   │           │       │           └─→ <span class="success">Return { token }</span>
+   │           │       │
+   │           │       └─→ <span class="error">NO MATCH</span> → STOLEN TOKEN DETECTED
+   │           │           │
+   │           │           └─→ <span class="error">Return 401 "Invalid refresh token"</span>
+   │           │
+   │           └─→ <span class="error">User not found</span> → Return 401
+   │
+   └─→ <span class="success">Send new access token to client</span>
+       │
+       ▼
+<span class="highlight">CLIENT</span>
+   │
+   └─→ <span class="warning">localStorage.setItem('accessToken', newToken)</span>
+   └─→ <span class="success">Retry original request</span>
+            </pre>
+        </div>
+
+        <!-- Logout Flow -->
+        <div style="margin: 40px 0;">
+            <div class="layer-title">🚪 LOGOUT FLOW - /api/users/logout (DAY-4)</div>
+            
+            <pre class="code-snippet" style="line-height: 2;">
+<span class="highlight">CLIENT - DEVICE A</span> (Chrome)
+   │
+   │ User clicks "Logout"
+   │
+   │ <span class="success">POST /api/users/logout</span>
+   │ { refreshToken }
+   │
+   ▼
+<span class="highlight">SERVER.JS</span>
+   │
+   ├─→ <span class="warning">Verify refresh token</span>
+   │   │
+   │   └─→ <span class="success">jwt.verify(refreshToken, JWT_REFRESH_SECRET)</span>
+   │       │
+   │       └─→ <span class="success">Valid</span> → Extract user ID
+   │
+   ├─→ <span class="warning">Find user</span>
+   │   │
+   │   └─→ <span class="highlight">User.findById(decoded.id)</span>
+   │       │
+   │       └─→ <span class="warning">MongoDB</span> 🗄️
+   │
+   ├─→ <span class="warning">🔥 Clear refresh token from DB</span>
+   │   │
+   │   └─→ <span class="highlight">user.refreshToken = null</span>
+   │       │
+   │       └─→ <span class="highlight">user.save()</span>
+   │           │
+   │           └─→ <span class="warning">MongoDB</span> 🗄️
+   │               │
+   │               ▼
+   │           <span class="success">refreshToken = null in DB</span>
+   │
+   └─→ <span class="success">Return { message: "Logged out from all devices" }</span>
+       │
+       ▼
+<span class="highlight">CLIENT - DEVICE A</span>
+   │
+   └─→ <span class="warning">localStorage.removeItem('accessToken')</span>
+   └─→ <span class="warning">localStorage.removeItem('refreshToken')</span>
+   └─→ <span class="success">Show login form</span>
+
+
+<span class="error">═══════════════════════════════════════════════════════════</span>
+
+<span class="highlight">CLIENT - DEVICE B</span> (Firefox - still has old tokens in localStorage)
+   │
+   │ User tries to use app
+   │
+   │ <span class="success">GET /api/users/me</span>
+   │ Header: Authorization: Bearer <span class="error">&lt;expired accessToken&gt;</span>
+   │
+   ▼
+<span class="highlight">SERVER.JS</span>
+   │
+   └─→ <span class="error">401 Unauthorized</span> (token expired)
+       │
+       ▼
+<span class="highlight">CLIENT - DEVICE B</span>
+   │
+   ├─→ Auto-refresh triggered
+   │   │
+   │   └─→ <span class="success">POST /api/users/refresh</span>
+   │       │ { refreshToken: <span class="error">&lt;old token&gt;</span> }
+   │       │
+   │       ▼
+   │   <span class="highlight">SERVER.JS</span>
+   │       │
+   │       ├─→ Verify JWT → <span class="success">Valid</span>
+   │       │
+   │       ├─→ Check DB
+   │       │   │
+   │       │   └─→ <span class="warning">user.refreshToken</span> = <span class="error">null</span> (cleared by Device A)
+   │       │       │
+   │       │       └─→ <span class="error">Token mismatch!</span>
+   │       │           │
+   │       │           └─→ <span class="error">Return 401 "Invalid refresh token"</span>
+   │       │
+   │       └─→ <span class="error">Refresh failed</span>
+   │           │
+   │           ▼
+   │   <span class="highlight">CLIENT - DEVICE B</span>
+   │       │
+   │       └─→ <span class="error">Clear local tokens</span>
+   │       └─→ <span class="error">Show login form</span>
+   │       └─→ <span class="success">✓ USER LOGGED OUT FROM ALL DEVICES</span>
+            </pre>
+        </div>
+
+        <!-- Security Check Visualization -->
+        <div style="margin: 40px 0;">
+            <div class="layer-title">🛡️ SECURITY: WHY WE CHECK DB</div>
+            
+            <div class="flow-step">
+                <span class="step-number">[SCENARIO]</span> Hacker steals refresh token
+            </div>
+
+            <pre class="code-snippet" style="line-height: 2;">
+<span class="error">🔴 WITHOUT DB CHECK (Vulnerable)</span>
+────────────────────────────────────
+1. User logs in → Gets refreshToken
+2. <span class="error">Hacker steals refreshToken</span>
+3. User logs out
+4. Hacker uses stolen token → <span class="error">jwt.verify() passes ✓</span>
+5. Hacker gets new access token → <span class="error">SUCCESS (BAD!)</span>
+
+
+<span class="success">🟢 WITH DB CHECK (Secure - Day-4)</span>
+────────────────────────────────────
+1. User logs in → Gets refreshToken
+2. Server stores refreshToken in DB
+3. <span class="error">Hacker steals refreshToken</span>
+4. User logs out → <span class="warning">DB refreshToken = null</span>
+5. Hacker uses stolen token:
+   │
+   ├─→ jwt.verify() → <span class="success">Valid JWT ✓</span>
+   │
+   └─→ Check DB → <span class="error">Token doesn't match (null in DB)</span>
+       │
+       └─→ <span class="error">BLOCKED! Return 401</span>
+
+<span class="success">✓ Hacker cannot generate new access tokens</span>
+<span class="success">✓ User is safe</span>
+            </pre>
+        </div>
+
+        <!-- File Dependencies -->
+        <div style="margin: 40px 0;">
+            <div class="layer-title">📦 FILE DEPENDENCIES MAP</div>
+            
+            <pre class="code-snippet">
+<span class="warning">server.js</span>
+    ├── depends on → <span class="success">.env</span>
+    │   └── provides → Environment variables
+    │
+    ├── depends on → <span class="success">src/models/userModel.js</span>
+    │   └── provides → User schema & methods
+    │       └── depends on → <span class="warning">mongoose</span>
+    │           └── connects to → <span class="warning">MongoDB</span>
+    │
+    ├── depends on → <span class="success">src/middlewares/auth.js</span>
+    │   └── provides → protect() middleware
+    │       └── depends on → <span class="warning">jsonwebtoken</span>
+    │
+    └── depends on → <span class="warning">npm packages</span>
+        ├── express
+        ├── cors
+        ├── body-parser
+        ├── morgan
+        ├── jsonwebtoken
+        ├── bcrypt
+        └── dotenv
+
+
+<span class="warning">frontend/index.html</span>
+    └── depends on → <span class="success">frontend/main.js</span>
+        └── makes requests to → <span class="warning">http://127.0.0.1:5000/api/*</span>
+            └── handled by → <span class="success">server.js</span>
+            </pre>
+        </div>
+
+        <!-- Summary -->
+        <div style="margin: 40px 0; padding: 20px; border: 2px solid #ffd700; background: #0f0f0f;">
+            <div style="color: #ffd700; font-size: 18px; margin-bottom: 15px;">🎯 KEY TAKEAWAYS</div>
+            <pre>
+<span class="success">1. server.js</span> is the MAIN CONTROLLER
+   ├── Imports User model
+   ├── Imports protect middleware
+   └── Defines all routes
+
+<span class="success">2. userModel.js</span> is the DATABASE SCHEMA
+   └── Defines how user data is stored (including refreshToken)
+
+<span class="success">3. auth.js</span> is the SECURITY GUARD
+   └── Verifies JWT tokens before allowing access
+
+<span class="success">4. .env</span> is the CONFIGURATION
+   └── Stores sensitive keys and settings
+
+<span class="warning">5. MongoDB</span> is the TRUTH SOURCE
+   └── Stores user data including refreshToken
+   └── Used to validate refresh tokens (Day-4)
+
+<span class="highlight">6. Frontend</span> is the CLIENT
+   └── Makes requests to server
+   └── Stores tokens in localStorage
+   └── Handles auto-refresh on 401 errors
+            </pre>
+        </div>
+
+        <div style="text-align: center; padding: 30px; border-top: 2px solid #00ff00; margin-top: 40px;">
+            <pre>
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║   NOW GO TEST EVERYTHING AND COME BACK WITH YOUR RESULTS     ║
+║                                                               ║
+║   Remember: Code that you don't understand is code you       ║
+║   can't debug. Trace every line. Test every scenario.        ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+            </pre>
+        </div>
+    </div>
+</body>
+</html>

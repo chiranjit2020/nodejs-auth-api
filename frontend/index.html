@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day-5 JWT Auth - Token Rotation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        input, button {
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .logout-btn {
+            background: #dc3545;
+        }
+        .logout-btn:hover {
+            background: #c82333;
+        }
+        .logout-all-btn {
+            background: #6c757d;
+        }
+        .logout-all-btn:hover {
+            background: #5a6268;
+        }
+        #message {
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        #userInfo {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin-top: 20px;
+            display: none;
+        }
+        pre {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .status {
+            padding: 10px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .device-input {
+            background: #e3f2fd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Day-5: Multi-Device + Token Rotation</h1>
+        
+        <div class="status" id="status">
+            Status: Not logged in
+        </div>
+
+        <form id="loginForm">
+            <input type="email" id="email" placeholder="Email" value="rick@mail.com" required />
+            <input type="password" id="password" placeholder="Password" value="123456" required />
+            <input type="text" id="device" class="device-input" placeholder="Device name (e.g., chrome-laptop)"  />
+            <button type="submit">Login</button>
+        </form>
+
+        <div id="message"></div>
+
+        <div id="userInfo">
+            <h3>User Information</h3>
+            <pre id="userData"></pre>
+            
+            <div class="btn-group">
+                <button id="getMeBtn">Get User Info</button>
+                <button id="refreshBtn">Test Refresh</button>
+                <button id="logoutBtn" class="logout-btn">Logout (This Device)</button>
+                <button id="logoutAllBtn" class="logout-all-btn">Logout All Devices</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const API_URL = 'http://127.0.0.1:5000/api';
+
+        // DOM Elements
+        const loginForm = document.getElementById('loginForm');
+        const messageDiv = document.getElementById('message');
+        const statusDiv = document.getElementById('status');
+        const userInfoDiv = document.getElementById('userInfo');
+        const userDataPre = document.getElementById('userData');
+        const getMeBtn = document.getElementById('getMeBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const logoutAllBtn = document.getElementById('logoutAllBtn');
+
+        // Helper Functions
+        function showMessage(msg, type = 'success') {
+            messageDiv.textContent = msg;
+            messageDiv.className = type;
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function updateStatus(msg) {
+            statusDiv.textContent = `Status: ${msg}`;
+        }
+
+        function showUserInfo(user) {
+            userDataPre.textContent = JSON.stringify(user, null, 2);
+            userInfoDiv.style.display = 'block';
+            updateStatus('Logged in');
+        }
+
+        function hideUserInfo() {
+            userInfoDiv.style.display = 'none';
+            updateStatus('Not logged in');
+        }
+
+        // // Enhanced device detection with more details
+        // function detectDevice() {
+        //     const ua = navigator.userAgent;
+            
+        //     // Check for specific devices
+        //     const isMobile = /Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua);
+        //     const isTablet = /Tablet|iPad|PlayBook|Silk|(Android(?!.*Mobile))/.test(ua);
+            
+        //     if (isTablet) return 'tablet';
+        //     if (isMobile) return 'mobile';
+        //     return 'desktop';
+        // }
+
+        // // Also check screen size for better accuracy
+        // function detectDeviceWithScreen() {
+        //     const deviceType = detectDevice();
+            
+        //     // If user agent suggests mobile but screen is large, it might be a tablet
+        //     if (deviceType === 'mobile' && window.innerWidth >= 768) {
+        //         return 'tablet';
+        //     }
+            
+        //     return deviceType;
+        // }
+
+        // // Set on page load
+        // document.addEventListener('DOMContentLoaded', () => {
+        //     const deviceInput = document.getElementById('device');
+        //     if (deviceInput && !deviceInput.value || deviceInput.value === 'unknown') {
+        //         deviceInput.value = detectDeviceWithScreen();
+        //     }
+        // });
+
+        // ============================================
+        // 1. HANDLE LOGIN
+        // ============================================
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const device = document.getElementById('device').value || 'unknown';
+
+            try {
+                const response = await fetch(`${API_URL}/users/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, device })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Login failed');
+                }
+
+                const { token, refreshToken } = data;
+
+                // Store both tokens
+                localStorage.setItem('accessToken', token);
+                localStorage.setItem('refreshToken', refreshToken);
+
+                showMessage(`✓ Login successful! Device: ${device}`);
+                await getUserInfo();
+
+            } catch (error) {
+                showMessage(error.message, 'error');
+            }
+        });
+
+        // ============================================
+        // 2. GET USER INFO
+        // ============================================
+        async function getUserInfo() {
+            try {
+                const token = localStorage.getItem('accessToken');
+                
+                if (!token) {
+                    throw new Error('No access token found');
+                }
+
+                const response = await fetch(`${API_URL}/users/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        showMessage('Access token expired, refreshing...', 'warning');
+                        await refreshAccessToken();
+                        return await getUserInfo();
+                    }
+                    throw new Error(data.message || 'Failed to fetch user info');
+                }
+
+                showUserInfo(data.user);
+                showMessage('✓ User info fetched successfully!');
+
+            } catch (error) {
+                showMessage(error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // 3. 🔥 DAY-5: REFRESH WITH TOKEN ROTATION
+        // ============================================
+        async function refreshAccessToken() {
+            try {
+                const refreshToken = localStorage.getItem('refreshToken');
+                
+                if (!refreshToken) {
+                    throw new Error('No refresh token found');
+                }
+
+                const response = await fetch(`${API_URL}/users/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    // 🚨 Token theft detected or invalid token
+                    if (data.error && data.error.includes('theft')) {
+                        showMessage('🚨 ' + data.error, 'error');
+                    }
+                    throw new Error(data.error || 'Refresh failed');
+                }
+
+                // 🔥 CRITICAL: Update BOTH tokens (rotation)
+                const { token: newAccessToken, refreshToken: newRefreshToken } = data;
+                localStorage.setItem('accessToken', newAccessToken);
+                localStorage.setItem('refreshToken', newRefreshToken);  // 🔥 NEW
+                
+                showMessage('✓ Token refreshed successfully!');
+
+            } catch (error) {
+                showMessage(error.message + ' - Please login again', 'error');
+                logout(false);
+            }
+        }
+
+        // ============================================
+        // 4. 🔥 DAY-5: LOGOUT (SINGLE DEVICE)
+        // ============================================
+        async function logout(callBackend = true) {
+            try {
+                if (callBackend) {
+                    const refreshToken = localStorage.getItem('refreshToken');
+                    
+                    if (refreshToken) {
+                        const response = await fetch(`${API_URL}/users/logout`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ refreshToken })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            showMessage('✓ Logged out from this device!');
+                        }
+                    }
+                }
+                
+                // Clear local storage
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                hideUserInfo();
+                loginForm.reset();
+                
+                if (!callBackend) {
+                    showMessage('✓ Logged out locally');
+                }
+
+            } catch (error) {
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                hideUserInfo();
+                showMessage('Logged out (error: ' + error.message + ')', 'warning');
+            }
+        }
+
+        // ============================================
+        // 5. 🔥 DAY-5: LOGOUT ALL DEVICES
+        // ============================================
+        async function logoutAll() {
+            try {
+                const refreshToken = localStorage.getItem('refreshToken');
+                
+                if (!refreshToken) {
+                    throw new Error('No refresh token found');
+                }
+
+                const response = await fetch(`${API_URL}/users/logout-all`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Logout all failed');
+                }
+
+                showMessage('✓ Logged out from ALL devices!');
+                
+                // Clear local storage
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                hideUserInfo();
+                loginForm.reset();
+
+            } catch (error) {
+                showMessage(error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        getMeBtn.addEventListener('click', getUserInfo);
+        refreshBtn.addEventListener('click', refreshAccessToken);
+        logoutBtn.addEventListener('click', () => logout(true));
+        logoutAllBtn.addEventListener('click', logoutAll);
+
+        // Check if already logged in on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('accessToken');
+            const refreshToken = localStorage.getItem('refreshToken');
+            
+            if (token && refreshToken) {
+                updateStatus('Checking session...');
+                getUserInfo();
+            }
+        });
+    </script>
+</body>
+</html>
