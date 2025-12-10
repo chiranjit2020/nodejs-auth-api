@@ -20,19 +20,25 @@ const generateTokens = (userId) => {
 };
 
 // 🔥 DAY-5: Register controller
+// 🔥 DAY-6: Register with optional role
 export const register = async (req, res) => {
     try {
-        const { name, email, password, device = 'unknown' } = req.body;
+        const { name, email, password, device = 'unknown', role } = req.body;
 
         const existingUser = await User.findOne({ email });
         if(existingUser){
             return res.status(400).json({ success: false, message: "User already exists" });
         }
 
-        const user = await User.create({ name, email, password });
-        const { accessToken, refreshToken } = generateTokens(user._id);
+        // 🔥 Create user with role (defaults to "user" if not provided)
+        const userData = { name, email, password };
+        if(role && ['user', 'admin', 'manager'].includes(role)){
+            userData.role = role;
+        }
 
-        console.log({ accessToken, refreshToken });
+
+        const user = await User.create(userData);
+        const { accessToken, refreshToken } = generateTokens(user._id);
 
         // 🔥 DAY-5: Add token to array (not overwrite)
         user.refreshTokens.push({
@@ -40,9 +46,20 @@ export const register = async (req, res) => {
             device: device,
             createdAt: new Date()
         });
+
         await user.save();
 
-        res.json({ success: true, token: accessToken, refreshToken });
+        res.json({ 
+            success: true, 
+            token: accessToken, 
+            refreshToken,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role // 🔥 Return role
+            }
+        });
 
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -74,7 +91,17 @@ export const login = async (req, res) => {
         });
         await user.save();
 
-        res.json({ success: true, token: accessToken, refreshToken });
+        res.json({ 
+            success: true, 
+            token: accessToken, 
+            refreshToken,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role // 🔥 Return role
+            } 
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -210,9 +237,37 @@ export const logoutAll = async (req, res) => {
     }
 };
 
+// 🔥 DAY-6: Admin-only endpoint - Get all users
+export const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find({}).select("-password -refreshTokens");
+        res.json({
+            success: true,
+            count: users.length,
+            users
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
 
+// 🔥 DAY-6: Admin-only endpoint - Delete user
+export const deleteUser = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = await User.findByIdAndDelete(userId);
+        if(!user){
+            return res.staus(404).json({ success: false, message: "user not found "});
+        }
 
-
+        res.json({
+            success: true, 
+            message: "User deleted successfully"
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
 
 
 

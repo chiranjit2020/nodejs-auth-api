@@ -20,6 +20,12 @@ const userSchema = new mongoose.Schema({
         minlength: 6,
         select: false // Don't return password by default
     },
+    // 🔥 DAY-6: Add role field
+    role: {
+        type: String,
+        enum: ['user', 'admin', 'manager'], // Only allow these values
+        default: 'user' // Default role for new users
+    },
     // 🔥 DAY-5 CHANGE: Array of refresh tokens (multi-device support)
     refreshTokens: [{
         token: {
